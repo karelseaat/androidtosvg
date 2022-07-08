@@ -7,80 +7,64 @@ This script convert your VectorDrawable to a Svg
 Usage: drop one or more vector drawable onto this script to convert them to svg format
 """
 
-from xml.dom.minidom import *
+from xml.dom.minidom import Document, parse
 import sys
 
-# extracts all paths inside vdContainer and add them into svgContainer
-def convertPaths(vdContainer,svgContainer,svgXml):
-	vdPaths = vdContainer.getElementsByTagName('path')
-	for vdPath in vdPaths:
-		# only iterate in the first level
-		if vdPath.parentNode == vdContainer:
-			svgPath = svgXml.createElement('path')
-			svgPath.attributes['d'] = vdPath.attributes['android:pathData'].value
-			if vdPath.hasAttribute('android:fillColor'):
-				svgPath.attributes['fill'] = vdPath.attributes['android:fillColor'].value
-			else:
-				svgPath.attributes['fill'] = 'none'
-			if vdPath.hasAttribute('android:strokeLineJoin'):
-				svgPath.attributes['stroke-linejoin'] = vdPath.attributes['android:strokeLineJoin'].value
-			if vdPath.hasAttribute('android:strokeLineCap'):
-				svgPath.attributes['stroke-linecap'] = vdPath.attributes['android:strokeLineCap'].value
-			if vdPath.hasAttribute('android:strokeMiterLimit'):
-				svgPath.attributes['stroke-miterlimit'] = vdPath.attributes['android:strokeMiterLimit'].value
-			if vdPath.hasAttribute('android:strokeWidth'):
-				svgPath.attributes['stroke-width'] = vdPath.attributes['android:strokeWidth'].value
-			if vdPath.hasAttribute('android:strokeColor'):
-				svgPath.attributes['stroke'] = vdPath.attributes['android:strokeColor'].value
-			svgContainer.appendChild(svgPath);
+def convert_paths(vd_container,svg_container,svg_xml):
+    vd_paths = vd_container.getElementsByTagName('path')
+    for vd_path in vd_paths:
+        atributes = vd_path.attributes
 
-# define the function which converts a vector drawable to a svg
-def convertVd(vdFilePath):
+        if vd_path.parentNode == vd_container:
+            svg_path = svg_xml.createElement('path')
+            svg_path.attributes['d'] = atributes['android:pathData'].value
+        if vd_path.hasAttribute('android:fillColor'):
+            svg_path.attributes['fill'] = atributes['android:fillColor'].value
+        else:
+            svg_path.attributes['fill'] = 'none'
+        if vd_path.hasAttribute('android:strokeLineJoin'):
+            svg_path.attributes['stroke-linejoin'] = atributes['android:strokeLineJoin'].value
+        if vd_path.hasAttribute('android:strokeLineCap'):
+            svg_path.attributes['stroke-linecap'] = atributes['android:strokeLineCap'].value
+        if vd_path.hasAttribute('android:strokeMiterLimit'):
+            svg_path.attributes['stroke-miterlimit'] = atributes['android:strokeMiterLimit'].value
+        if vd_path.hasAttribute('android:strokeWidth'):
+            svg_path.attributes['stroke-width'] = atributes['android:strokeWidth'].value
+        if vd_path.hasAttribute('android:strokeColor'):
+            svg_path.attributes['stroke'] = atributes['android:strokeColor'].value
+        svg_container.appendChild(svg_path)
 
-	# create svg xml
-	svgXml = Document()
-	svgNode = svgXml.createElement('svg')
-	svgXml.appendChild(svgNode);
 
-	# open vector drawable
-	vdXml = parse(vdFilePath)
-	vdNode = vdXml.getElementsByTagName('vector')[0]
+def convert_vd(vd_file_path):
 
-	# setup basic svg info
-	svgNode.attributes['xmlns'] = 'http://www.w3.org/2000/svg'
-	svgNode.attributes['width'] = vdNode.attributes['android:viewportWidth'].value
-	svgNode.attributes['height'] = vdNode.attributes['android:viewportHeight'].value
-	svgNode.attributes['viewBox'] = '0 0 {} {}'.format(vdNode.attributes['android:viewportWidth'].value, vdNode.attributes['android:viewportHeight'].value)
+    svg_xml = Document()
+    svg_node = svg_xml.createElement('svg')
+    svg_xml.appendChild(svg_node)
+    vd_xml = parse(vd_file_path)
+    vd_node = vd_xml.getElementsByTagName('vector')[0]
 
-	# iterate through all groups
-	vdGroups = vdXml.getElementsByTagName('group')
-	for vdGroup in vdGroups:
+    svg_node.attributes['xmlns'] = 'http://www.w3.org/2000/svg'
+    svg_node.attributes['width'] = vd_node.attributes['android:viewportWidth'].value
+    svg_node.attributes['height'] = vd_node.attributes['android:viewportHeight'].value
+    svg_node.attributes['viewBox'] = "0 0 {vd_node.attributes['android:viewportWidth'].value} {vd_node.attributes['android:viewportHeight'].value}"
 
-		# create the group
-		svgGroup = svgXml.createElement('g')
+    vd_groups = vd_xml.getElementsByTagName('group')
+    for vd_group in vd_groups:
+        svg_group = svg_xml.createElement('g')
+        if vd_group.hasAttribute('android:translateX'):
+            svg_group.attributes['transform'] = f"translate({vd_group.attributes['android:translateX'].value},{vd_group.attributes['android:translateY'].value})"
+        convert_paths(vd_group,svg_group,svg_xml)
+        svg_node.appendChild(svg_group)
 
-		# setup attributes of the group
-		if vdGroup.hasAttribute('android:translateX'):
-			svgGroup.attributes['transform'] = 'translate({},{})'.format(vdGroup.attributes['android:translateX'].value,vdGroup.attributes['android:translateY'].value)
+    convert_paths(vd_node, svg_node, svg_xml)
 
-		# iterate through all paths inside the group
-		convertPaths(vdGroup,svgGroup,svgXml)
+    svg_xml.writexml(open(vd_file_path + '.svg', 'w'),indent="",addindent="  ",newl='\n')
 
-		# append the group to the svg node
-		svgNode.appendChild(svgGroup);
-
-	# iterate through all svg-level paths
-	convertPaths(vdNode,svgNode,svgXml)
-
-	# write xml to file
-	svgXml.writexml(open(vdFilePath + '.svg', 'w'),indent="",addindent="  ",newl='\n')
-
-# script begin
 if len(sys.argv)>1:
-	iterArgs = iter(sys.argv)
-	next(iterArgs) #skip the first entry (it's the name of the script)
-	for arg in iterArgs:
-		convertVd(arg)
+    iterArgs = iter(sys.argv)
+    next(iterArgs)
+    for arg in iterArgs:
+        convert_vd(arg)
 else:
-	print("You have to pass me something")
-	sys.exit()
+    print("You have to pass me something")
+    sys.exit()
